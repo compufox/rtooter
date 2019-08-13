@@ -20,19 +20,22 @@ add_command 'quit' do
   exit true
 end
 
-add_command 'follow' do |account|
+add_command 'follow' do |args|
+  account = args.first
   acct = RestClient.search(account).first
 
   # confirm with user, then follow
 end
 
-add_command 'notifs' do |num|
+add_command 'notifs' do |args|
+  num = 10 if args.first.to_i == 0
   Array(RestClient.notifications)[0..num].collect do |notif|
-    "(#{notif.id}) #{notif.account} -- #{notif.type}"
+    "(#{notif.id}) #{notif.account.acct} -- #{notif.type}"
   end
 end
 
-add_command 'status' do |id|
+add_command 'status' do |args|
+  id = args.first
   RestClient.status(id).text
 end
 
@@ -41,7 +44,7 @@ loop do
   input = gets.strip
 
   if input[0] == CmdPrefix
-    cmd = input.split.first
+    cmd = input.split.first[1..]
     args = input.split[1..]
 
     if Commands.has_key? cmd
