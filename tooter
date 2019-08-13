@@ -1,0 +1,73 @@
+#!/usr/bin/env ruby
+require 'yaml'
+require 'moostodon'
+
+Config   = YAML.load_file(ARGV[0] || 'tooter.conf')
+raise 'No Config!' if Config.nil?
+
+Keywords = ['vis', 'visibility', 'cw' 'spoiler']
+KeywordRegex = /(?<key>(#{Keywords.join('|')}):?) ?(?<key_data>.+?\b)/i
+CmdPrefix = '!'
+Commands = {}
+RestClient = Mastodon::REST::Client.new(base_url: Config[:instance],
+                                        bearer_token: Config[:token])
+
+def add_command cmd, &block
+  Commands[cmd] = block
+end
+
+add_command 'quit' do
+  exit true
+end
+
+add_command 'follow' do |account|
+  acct = RestClient.search(account).first
+
+  # confirm with user, then follow
+end
+
+add_command 'notifs' do |num|
+  Array(RestClient.notifications)[0..num].collect do |notif|
+    "(#{notif.id}) #{notif.account} -- #{notif.type}"
+  end
+end
+
+add_command 'status' do |id|
+  RestClient.status(id).text
+end
+
+loop do
+  print 'Tooter> '
+  input = gets.strip
+
+  if input[0] == CmdPrefix
+    cmd = input.split.first
+    args = input.split[1..]
+
+    if Commands.has_key? cmd
+      Commands[cmd].call args
+    else
+      puts "Command not found"
+    end
+  else
+    opts = {}
+    matches = KeywordRegex.match(input)
+
+    unless matches.nil?
+      begins  = matches.named_captures.collect {|k,v| matches.begin(k.to_sym)}
+      keywords = matches.named_captures
+    
+      keywords.select do |k, v|
+        k = 'visbility' if k == 'vis'
+        k = 'spoiler_text' if k == 'cw' or k == 'spoiler'
+        opts[k.to_sym] = v
+      end
+
+      input = input[0..begins.min]
+    end
+
+    # build a hash based off of what was matched and what wasnt
+    #  pass that hash into create_status
+    RestClient.create_status(input, **opts)
+  end
+end
