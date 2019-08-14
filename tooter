@@ -28,6 +28,15 @@ def add_command cmd, &block
   Commands[cmd] = block
 end
 
+# wraps blocks so they dont fail on http errors
+def safe_request
+  begin
+    yield
+  rescue HTTP::TimeoutError
+    puts 'ERR -- HTTP Timeout'
+  end
+end
+
 # loads an account config
 def load_account config
   unless File.exists?(config)
@@ -71,15 +80,19 @@ end
 add_command 'notifs' do |num|
   num = num.to_i
   num = 10 if num.zero?
-  Array($client.notifications)[0..num].each do |notif|
-    puts "(#{notif.id}) #{notif.account.acct} -- #{notif.type} #{notif.type != 'follow' ? notif.status.id : ''}"
+  safe_request do
+    Array($client.notifications)[0..num].each do |notif|
+      puts "(#{notif.id}) #{notif.account.acct} -- #{notif.type} #{notif.type != 'follow' ? notif.status.id : ''}"
+    end
   end
 end
 
 # fetches a single status
 add_command 'status' do |id|
-  status = $client.status(id)
-  puts "@#{status.account.acct}: #{status.stripped_content}"
+  safe_request do
+    status = $client.status(id)
+    puts "@#{status.account.acct}: #{status.stripped_content}"
+  end
 end
 
 # switches to a new account
@@ -138,7 +151,9 @@ loop do
       matches = KeywordRegex.match(input)
     end
 
-    # outputs our new status id
-    puts "status #{$client.create_status(input, opts).id} posted"
+    safe_request do
+      # outputs our new status id
+      puts "status #{$client.create_status(input, opts).id} posted"
+    end
   end
 end
