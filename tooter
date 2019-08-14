@@ -4,7 +4,7 @@ require 'moostodon'
 require 'htmlentities'
 
 Keywords = ['vis', 'visibility', 'cw', 'spoiler', 'reply']
-KeywordRegex = /(?<key>(#{Keywords.join('|')}):) ?(?<key_data>.+?\b)/i
+KeywordRegex = /(?<key>(#{Keywords.join('|')}):)\s?(?<key_data>(\b((\S|\s)(?!:))+\b))/i
 CmdPrefix = '!'
 Commands = {}
 $client = nil
@@ -142,7 +142,7 @@ loop do
       key = 'spoiler_text' if key.chop == 'cw' or key.chop == 'spoiler'
       key = 'in_reply_to_id' if key.chop == 'reply'
       
-      opts[key.to_sym] = keywords["key_data"]
+      opts[key.to_sym] = keywords["key_data"].strip
 
       match_begin = matches.begin("key")
       match_size = keywords['key'].length + keywords['key_data'].length + 1
@@ -153,7 +153,7 @@ loop do
 
     safe_request do
       # outputs our new status id
-      puts "status #{$client.create_status(input, opts).id} posted"
+      puts "status #{$client.create_status(input.strip, opts).id} posted"
     end
   end
 end
