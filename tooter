@@ -1,48 +1,83 @@
 #!/usr/bin/env ruby
 require 'yaml'
 require 'moostodon'
+require 'htmlentities'
 
-Config   = YAML.load_file(ARGV[0] || 'tooter.conf')
-raise 'No Config!' if Config.nil?
+raise 'config not found' unless File.exists?(ARGV[0] || 'tooter.conf')
+Config = YAML.load_file(ARGV[0] || 'tooter.conf')
+raise 'empty config file' if Config.nil?
 
-Keywords = ['vis', 'visibility', 'cw' 'spoiler']
-KeywordRegex = /(?<key>(#{Keywords.join('|')}):?) ?(?<key_data>.+?\b)/i
+Keywords = ['vis', 'visibility', 'cw', 'spoiler', 'reply']
+KeywordRegex = /(?<key>(#{Keywords.join('|')}):) ?(?<key_data>.+?\b)/i
 CmdPrefix = '!'
 Commands = {}
+
+# :blobcatknife:
+raise 'fuck off gabber' if Config[:instance] =~ /gab/
+
 RestClient = Mastodon::REST::Client.new(base_url: Config[:instance],
-                                        bearer_token: Config[:token])
+                                      bearer_token: Config[:token])
 DefaultPrivacy = RestClient.verify_credentials.attributes["source"]["privacy"]
 
+## add a method to statuses to take out the html 
+module Mastodon
+  class Status
+    Decoder = HTMLEntities.new
+    def stripped_content
+      Decoder.decode(content
+                       .gsub(/(<\/p><p>|<br\s*\/?>)/, "\n")
+                       .gsub(/<("[^"]*"|'[^']*'|[^'">])*>/, ''))
+    end
+  end
+end
+
+
+# quick little helper function to make code kinda clean
 def add_command cmd, &block
   Commands[cmd] = block
 end
 
+# quits the repl
 add_command 'quit' do
   exit true
 end
 
+# follws an account after user confirmation
 add_command 'follow' do |account|
   acct = RestClient.search(account).first
 
   # confirm with user, then follow
 end
 
+# fetches a certain number of recent notifications
 add_command 'notifs' do |num|
   num = num.to_i
   num = 10 if num.zero?
-  Array(RestClient.notifications)[0..num].collect do |notif|
-    "(#{notif.id}) #{notif.account.acct} -- #{notif.type}"
+  Array(RestClient.notifications)[0..num].each do |notif|
+    puts "(#{notif.id}) #{notif.account.acct} -- #{notif.type} #{notif.type != 'follow' ? notif.status.id : ''}"
   end
 end
 
+# fetches a single status
 add_command 'status' do |id|
-  RestClient.status(id).text
+  status = RestClient.status(id)
+  puts "@#{status.account.acct}: #{status.stripped_content}"
 end
+
+
+
+##
+# MAIN LOOP
+##
 
 loop do
   print 'Tooter> '
-  input = gets.strip
+  input = gets
 
+  # handles ctrl+d
+  Commands['quit'].call if input.nil?
+  
+  input.strip!
   if input[0] == CmdPrefix
     cmd = input.split.first[1..]
     args = input.split[1..]
@@ -52,30 +87,33 @@ loop do
     else
       puts "Command not found"
     end
-  else
+    
+  elsif input.length > 0
     opts = {
-      visibility: DefaultPrivacy,
-      spoiler_text: ''
+      visibility: DefaultPrivacy
     }
     
-    # change this to a while loop to catch all keywords
     matches = KeywordRegex.match(input)
 
+    # catch all of our keywords and handle them properly
     until matches.nil? do
       keywords = matches.named_captures
-
-      key = keywords[:key]
-      key = 'visibility' if key == 'vis'
-      key = 'spoiler_text' if key == 'cw' or key == 'spoiler'
       
-      opts[key.to_sym] = keywords[:key_data]
+      key = keywords["key"]
+      key = 'visibility' if key.chop == 'vis'
+      key = 'spoiler_text' if key.chop == 'cw' or key.chop == 'spoiler'
+      key = 'in_reply_to_id' if key.chop == 'reply'
+      
+      opts[key.to_sym] = keywords["key_data"]
 
-      input = input[0...matches.begin[:key]]
+      match_begin = matches.begin("key")
+      match_size = keywords['key'].length + keywords['key_data'].length + 1
+      
+      input[match_begin...match_begin + match_size] = ''
       matches = KeywordRegex.match(input)
     end
-    
-    # build a hash based off of what was matched and what wasnt
-    #  pass that hash into create_status
-    RestClient.create_status(input, opts)
+
+    # outputs our new status id
+    puts "status #{RestClient.create_status(input, opts).id} posted"
   end
 end
