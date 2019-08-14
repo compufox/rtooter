@@ -6,7 +6,11 @@ a barebones mastodon client
 
 - clone/download the repo
 - `bundle install`
+- modify `tooter.conf.example` to reflect your info*
+- rename `tooter.conf.example` to `tooter.conf`
 - `bundle exec ruby tooter`
+
+*for instructions on how to get an access token for your account please [check here](https://github.com/theZacAttacks/silence#getting-an-access-token)
 
 ## usage
 
