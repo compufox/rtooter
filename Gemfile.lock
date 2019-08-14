@@ -6,6 +6,7 @@ GEM
     buftok (0.2.0)
     domain_name (0.5.20190701)
       unf (>= 0.0.5, < 1.0.0)
+    htmlentities (4.3.4)
     http (3.3.0)
       addressable (~> 2.3)
       http-cookie (~> 1.0)
@@ -27,10 +28,12 @@ GEM
     unf_ext (0.0.7.6)
 
 PLATFORMS
+  ruby
   x64-mingw32
 
 DEPENDENCIES
+  htmlentities
   moostodon
 
 BUNDLED WITH
-   1.17.2
+   1.17.3
