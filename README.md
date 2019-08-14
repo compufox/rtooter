@@ -28,6 +28,8 @@ e.g., `Tooter> posting from tooter~ vis: unlisted cw: testing`, `Tooter> replyin
 
 `!status <id>` -- returns a single status given an ID
 
+`!account <filename>` -- loads a new account from given FILENAME
+
 `!notifs [amount]` -- returns AMOUNT of notifications (defaults to 10)
 
 `!follow <account>` -- follows ACCOUNT after user confirmation

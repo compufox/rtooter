@@ -3,21 +3,12 @@ require 'yaml'
 require 'moostodon'
 require 'htmlentities'
 
-raise 'config not found' unless File.exists?(ARGV[0] || 'tooter.conf')
-Config = YAML.load_file(ARGV[0] || 'tooter.conf')
-raise 'empty config file' if Config.nil?
-
 Keywords = ['vis', 'visibility', 'cw', 'spoiler', 'reply']
 KeywordRegex = /(?<key>(#{Keywords.join('|')}):) ?(?<key_data>.+?\b)/i
 CmdPrefix = '!'
 Commands = {}
-
-# :blobcatknife:
-raise 'fuck off gabber' if Config[:instance] =~ /gab/
-
-RestClient = Mastodon::REST::Client.new(base_url: Config[:instance],
-                                      bearer_token: Config[:token])
-DefaultPrivacy = RestClient.verify_credentials.attributes["source"]["privacy"]
+$client = nil
+$current_acct = ''
 
 ## add a method to statuses to take out the html 
 module Mastodon
@@ -37,6 +28,33 @@ def add_command cmd, &block
   Commands[cmd] = block
 end
 
+# loads an account config
+def load_account config
+  unless File.exists?(config)
+    puts 'config not found -- aborting load' unless $client.nil?
+    return unless $client.nil?
+    
+    raise 'config not found'
+  end
+  
+  loaded_config = YAML.load_file(config)
+  
+  if loaded_config.empty?
+    puts 'config file empty -- aborting load' unless $client.nil?
+    return unless $client.nil?
+  
+    raise 'empty config file'
+  end
+  
+  # :blobcatknife:
+  raise 'fuck off gabber' if loaded_config[:instance] =~ /gab/
+  
+  $client = Mastodon::REST::Client.new(base_url: loaded_config[:instance],
+                                       bearer_token: loaded_config[:token])
+  $current_acct = $client.verify_credentials.acct
+  $default_privacy = $client.verify_credentials.attributes["source"]["privacy"]
+end
+
 # quits the repl
 add_command 'quit' do
   exit true
@@ -44,7 +62,7 @@ end
 
 # follws an account after user confirmation
 add_command 'follow' do |account|
-  acct = RestClient.search(account).first
+  acct = $client.search(account).first
 
   # confirm with user, then follow
 end
@@ -53,17 +71,24 @@ end
 add_command 'notifs' do |num|
   num = num.to_i
   num = 10 if num.zero?
-  Array(RestClient.notifications)[0..num].each do |notif|
+  Array($client.notifications)[0..num].each do |notif|
     puts "(#{notif.id}) #{notif.account.acct} -- #{notif.type} #{notif.type != 'follow' ? notif.status.id : ''}"
   end
 end
 
 # fetches a single status
 add_command 'status' do |id|
-  status = RestClient.status(id)
+  status = $client.status(id)
   puts "@#{status.account.acct}: #{status.stripped_content}"
 end
 
+# switches to a new account
+add_command 'account' do |config|
+  load_account config
+end
+
+
+load_account(ARGV.pop || 'tooter.conf')
 
 
 ##
@@ -71,7 +96,7 @@ end
 ##
 
 loop do
-  print 'Tooter> '
+  print "Tooter (@#{$current_acct})> "
   input = gets
 
   # handles ctrl+d
@@ -90,7 +115,7 @@ loop do
     
   elsif input.length > 0
     opts = {
-      visibility: DefaultPrivacy
+      visibility: $default_privacy
     }
     
     matches = KeywordRegex.match(input)
@@ -114,6 +139,6 @@ loop do
     end
 
     # outputs our new status id
-    puts "status #{RestClient.create_status(input, opts).id} posted"
+    puts "status #{$client.create_status(input, opts).id} posted"
   end
 end
