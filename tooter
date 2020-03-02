@@ -82,7 +82,7 @@ add_command 'notifs' do |num|
   num = 10 if num.zero?
   safe_request do
     Array($client.notifications)[0..num].each do |notif|
-      puts "(#{notif.id}) #{notif.account.acct} -- #{notif.type} #{notif.type != 'follow' and notif.type != 'follow_request' ? notif.status.id : ''}"
+      puts "(#{notif.id}) #{notif.account.acct} -- #{notif.type} #{notif.type.start_with?('follow') ? '' : notif.status.id}"
     end
   end
 end
